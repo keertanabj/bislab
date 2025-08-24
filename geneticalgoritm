@@ -1,0 +1,42 @@
+mport random, math
+
+# Fitness function
+def f(x): return x * x
+
+def GA():
+    pop_size = int(input("Population size: "))
+    gens = int(input("Generations: "))
+    mut_rate = float(input("Mutation rate (0-1): "))
+    cross_rate = float(input("Crossover rate (0-1): "))
+    bounds = (0,1)
+
+    # Initial population
+    pop = [random.uniform(*bounds) for _ in range(pop_size)]
+    best, best_fit = None, -1e9
+
+    for g in range(gens):
+        fitness = [f(x) for x in pop]
+        if max(fitness) > best_fit:
+            best_fit, best = max(fitness), pop[fitness.index(max(fitness))]
+
+        # Selection (roulette wheel)
+        probs = [fit/sum(fitness) for fit in fitness]
+        sel = random.choices(pop, weights=probs, k=pop_size)
+
+        # Crossover + Mutation
+        new_pop = []
+        for p in sel:
+            if random.random() < cross_rate:
+                m = random.choice(sel); c = random.random()
+                p = c*p + (1-c)*m
+            if random.random() < mut_rate:
+                p += random.gauss(0,0.1); p = max(bounds[0], min(bounds[1], p))
+            new_pop.append(p)
+        pop = new_pop
+
+        print(f"Gen {g+1}: Best x={best:.4f}, f(x)={best_fit:.4f}")
+
+    print("\nFinal Best:", best, "f(x)=", best_fit)
+
+GA()
+
