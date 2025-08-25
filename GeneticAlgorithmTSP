@@ -1,0 +1,93 @@
+import random
+from tabulate import tabulate
+
+def fitness(path, distances):
+    """Calculate total distance for a path"""
+    total = 0
+    for i in range(len(path)):
+        total += distances[path[i]][path[(i + 1) % len(path)]]
+    return total
+
+def crossover(parent1, parent2):
+    """Order crossover"""
+    start, end = sorted(random.sample(range(len(parent1)), 2))
+    child = [-1] * len(parent1)
+    child[start:end] = parent1[start:end]
+
+    fill_values = [x for x in parent2 if x not in child]
+    fill_index = 0
+    for i in range(len(child)):
+        if child[i] == -1:
+            child[i] = fill_values[fill_index]
+            fill_index += 1
+
+    return child, (start, end)
+
+def mutate(path):
+    """Swap mutation"""
+    i, j = random.sample(range(len(path)), 2)
+    path[i], path[j] = path[j], path[i]
+    return path, (i, j)
+
+# ---- Main Genetic Algorithm ----
+def genetic_algorithm(distances, pop_size=4, generations=1):
+    n_cities = len(distances)
+    population = [random.sample(range(n_cities), n_cities) for _ in range(pop_size)]
+
+    best_path = None
+    best_distance = float("inf")
+
+    for gen in range(generations):
+        print(f"\n=== Generation {gen+1} ===")
+        table = []
+
+        new_population = []
+
+        for i in range(0, len(population), 2):
+            parent1 = population[i]
+            parent2 = population[(i+1) % len(population)]
+
+            # Crossover
+            child, cross_points = crossover(parent1, parent2)
+            after_crossover = child.copy()
+
+            # Mutation
+            offspring, mut_points = mutate(child.copy())
+
+            # Track best solution
+            dist = fitness(offspring, distances)
+            if dist < best_distance:
+                best_distance = dist
+                best_path = offspring.copy()
+
+            # Add to table
+            table.append([
+                parent1, fitness(parent1, distances),
+                parent2,
+                cross_points, after_crossover,
+                mut_points, offspring, dist
+            ])
+
+            new_population.append(offspring)
+
+        population = new_population
+        headers = ["Parent", "Fitness", "Mate", "Crossover", "After Crossover",
+                   "Mutation", "Offspring", "Offspring Fitness"]
+        print(tabulate(table, headers=headers, tablefmt="grid"))
+
+    print("\n✅ Shortest Path Found:", best_path, "with Distance:", best_distance)
+
+# ---- User Input ----
+if __name__ == "__main__":
+    n = int(input("Enter number of cities: "))
+
+    print("Enter distance matrix row by row (space-separated):")
+    distances = []
+    for i in range(n):
+        row = list(map(int, input(f"Row {i+1}: ").split()))
+        distances.append(row)
+
+    pop_size = int(input("Enter population size: "))
+    generations = int(input("Enter number of generations: "))
+
+    genetic_algorithm(distances, pop_size, generations)
