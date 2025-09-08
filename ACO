@@ -1,0 +1,102 @@
+import random
+import math
+
+class ACO_TSP:
+    def __init__(self, dist_matrix, n_ants=5, n_iter=50, alpha=1, beta=2, rho=0.5, Q=100):
+        self.dist = dist_matrix
+        self.n = len(dist_matrix)
+        self.n_ants = n_ants
+        self.n_iter = n_iter
+        self.alpha = alpha
+        self.beta = beta
+        self.rho = rho
+        self.Q = Q
+        
+        # Initialize pheromone trails
+        self.pheromone = [[1 for _ in range(self.n)] for _ in range(self.n)]
+        self.best_length = math.inf
+        self.best_tour = []
+
+    def construct_solution(self):
+        all_tours = []
+        all_lengths = []
+        
+        for _ in range(self.n_ants):
+            start = random.randint(0, self.n - 1)
+            tour = [start]
+            
+            while len(tour) < self.n:
+                i = tour[-1]
+                probs = []
+                total = 0
+                for j in range(self.n):
+                    if j not in tour and self.dist[i][j] > 0:  # ✅ skip self-loops
+                        tau = self.pheromone[i][j] ** self.alpha
+                        eta = (1 / self.dist[i][j]) ** self.beta
+                        total += tau * eta
+                        probs.append((j, tau * eta))
+                
+                # Roulette wheel selection
+                r = random.random() * total
+                cum_sum = 0
+                for j, p in probs:
+                    cum_sum += p
+                    if cum_sum >= r:
+                        tour.append(j)
+                        break
+            
+            all_tours.append(tour)
+            all_lengths.append(self.tour_length(tour))
+        
+        return all_tours, all_lengths
+
+    def tour_length(self, tour):
+        length = 0
+        for i in range(len(tour)):
+            j = (i + 1) % self.n  # wrap around to start
+            length += self.dist[tour[i]][tour[j]]
+        return length
+
+    def update_pheromones(self, all_tours, all_lengths):
+        for i in range(self.n):
+            for j in range(self.n):
+                self.pheromone[i][j] *= (1 - self.rho)
+        
+        for k, tour in enumerate(all_tours):
+            Lk = all_lengths[k]
+            for i in range(len(tour)):
+                j = (i + 1) % self.n
+                a, b = tour[i], tour[j]
+                self.pheromone[a][b] += self.Q / Lk
+                self.pheromone[b][a] += self.Q / Lk
+
+    def run(self):
+        for _ in range(self.n_iter):
+            tours, lengths = self.construct_solution()
+            
+            for k in range(len(tours)):
+                if lengths[k] < self.best_length:
+                    self.best_length = lengths[k]
+                    self.best_tour = tours[k]
+            
+            self.update_pheromones(tours, lengths)
+        
+        return self.best_tour, self.best_length
+
+
+if __name__ == "__main__":
+    n = int(input("Enter number of cities: "))
+    print("Enter distance matrix (row by row, space-separated):")
+    dist_matrix = []
+    for _ in range(n):
+        row = list(map(int, input().split()))
+        dist_matrix.append(row)
+    
+    ants = int(input("Enter number of ants: "))
+    iterations = int(input("Enter number of iterations: "))
+    
+    aco = ACO_TSP(dist_matrix, n_ants=ants, n_iter=iterations)
+    best_tour, best_length = aco.run()
+    
+    print("\nBest Tour (order of cities):", best_tour)
+    print("Best Length:", best_length)
