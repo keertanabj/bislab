@@ -1,0 +1,98 @@
+import numpy as np
+import random
+
+def distance(city1, city2):
+    """Euclidean distance between two cities."""
+    return np.sqrt((city1[0] - city2[0])**2 + (city1[1] - city2[1])**2)
+
+def total_distance(tour, cities):
+    """Calculate total distance of the TSP tour."""
+    dist = 0.0
+    for i in range(len(tour)):
+        dist += distance(cities[tour[i]], cities[tour[(i + 1) % len(tour)]])
+    return dist
+
+def random_tour(num_cities):
+    """Generate a random permutation of city indices."""
+    tour = list(range(num_cities))
+    random.shuffle(tour)
+    return tour
+
+def levy_flight(tour, alpha=0.1):
+    """
+    Perform a Lévy flight inspired random walk on the tour.
+    Here we use a simple 2-opt swap as the perturbation,
+    with the number of swaps guided by Lévy distribution.
+    """
+    new_tour = tour.copy()
+    n = len(tour)
+    
+    step = int(abs(np.random.standard_cauchy()) * alpha)
+    step = max(1, min(step, n//2))
+    
+    for _ in range(step):
+        i, j = sorted(random.sample(range(n), 2))
+        new_tour[i:j+1] = reversed(new_tour[i:j+1])
+    
+    return new_tour
+
+def cuckoo_search_tsp(cities, n_nests=15, pa=0.25, max_iter=1000):
+    num_cities = len(cities)
+    
+    nests = [random_tour(num_cities) for _ in range(n_nests)]
+    fitness = [total_distance(tour, cities) for tour in nests]
+    
+    best_index = fitness.index(min(fitness))
+    best_nest = nests[best_index]
+    best_fitness = fitness[best_index]
+    
+    for iteration in range(max_iter):
+        for i in range(n_nests):
+            new_solution = levy_flight(nests[i])
+            new_fitness = total_distance(new_solution, cities)
+            
+            j = random.randint(0, n_nests - 1)
+            if new_fitness < fitness[j]:
+                nests[j] = new_solution
+                fitness[j] = new_fitness
+        
+        for i in range(n_nests):
+            if random.random() < pa:
+                nests[i] = random_tour(num_cities)
+                fitness[i] = total_distance(nests[i], cities)
+        
+        current_best_index = fitness.index(min(fitness))
+        if fitness[current_best_index] < best_fitness:
+            best_fitness = fitness[current_best_index]
+            best_nest = nests[current_best_index]
+        
+        if iteration % 100 == 0 or iteration == max_iter - 1:
+            print(f"Iteration {iteration}: Best distance = {best_fitness:.4f}")
+    
+    return best_nest, best_fitness
+
+# User Input Section
+def get_cities_from_user():
+    n = int(input("Enter the number of cities: "))
+    cities = []
+    print("Enter city coordinates as 'x y' (space separated):")
+    for i in range(n):
+        while True:
+            coords = input(f"City {i + 1}: ").strip().split()
+            if len(coords) != 2:
+                print("Please enter exactly two numbers.")
+                continue
+            try:
+                x, y = float(coords[0]), float(coords[1])
+                cities.append((x, y))
+                break
+            except ValueError:
+                print("Invalid input. Please enter valid numbers.")
+    return cities
+
+if __name__ == "__main__":
+    cities = get_cities_from_user()
+    print("\nRunning Cuckoo Search Algorithm for TSP...\n")
+    best_tour, best_dist = cuckoo_search_tsp(cities, n_nests=20, pa=0.25, max_iter=500)
+    print("\nBest tour found:", best_tour)
+    print(f"Best tour distance: {best_dist:.4f}")
