@@ -1,0 +1,119 @@
+import numpy as np
+
+# ---------------------------
+# Load Medical Dataset (Breast Cancer from sklearn repo replacement)
+# Since no sklearn, we simulate with random dataset (replace with your CSV)
+# ---------------------------
+np.random.seed(42)
+num_samples = 200
+num_features = 30
+X = np.random.rand(num_samples, num_features)  # simulated features
+y = np.random.randint(0, 2, num_samples)       # binary labels (0/1)
+
+# ---------------------------
+# Simple KNN (k=1) Classifier with NumPy
+# ---------------------------
+def knn_predict(X_train, y_train, X_test):
+    predictions = []
+    for x in X_test:
+        # Compute distances to all training points
+        distances = np.linalg.norm(X_train - x, axis=1)
+        nearest_idx = np.argmin(distances)
+        predictions.append(y_train[nearest_idx])
+    return np.array(predictions)
+
+def cross_val_score_knn(X, y, k_folds=5):
+    fold_size = len(X) // k_folds
+    accuracies = []
+    for k in range(k_folds):
+        start, end = k*fold_size, (k+1)*fold_size
+        X_test, y_test = X[start:end], y[start:end]
+        X_train = np.vstack([X[:start], X[end:]])
+        y_train = np.hstack([y[:start], y[end:]])
+        
+        y_pred = knn_predict(X_train, y_train, X_test)
+        acc = np.mean(y_pred == y_test)
+        accuracies.append(acc)
+    return np.mean(accuracies)
+
+# ---------------------------
+# Fitness Function
+# ---------------------------
+def fitness_function(wolf):
+    """Evaluate wolf (feature subset) using 1-NN accuracy"""
+    selected_features = [i for i in range(num_features) if wolf[i] == 1]
+    if len(selected_features) == 0:
+        return 1.0  # worst case (no features selected)
+    
+    X_subset = X[:, selected_features]
+    accuracy = cross_val_score_knn(X_subset, y, k_folds=5)
+    return 1 - accuracy  # minimize error
+
+# ---------------------------
+# Binary Transfer Function
+# ---------------------------
+def binary_transfer_function(x):
+    return 1 if np.random.rand() < 1 / (1 + np.exp(-x)) else 0
+
+# ---------------------------
+# Initialize Wolves
+# ---------------------------
+def initialize_population(num_wolves, num_features):
+    return np.random.randint(0, 2, (num_wolves, num_features))
+
+# ---------------------------
+# Grey Wolf Optimizer
+# ---------------------------
+def grey_wolf_optimizer(num_wolves=20, max_iter=20):
+    wolves = initialize_population(num_wolves, num_features)
+    fitness = np.array([fitness_function(wolf) for wolf in wolves])
+    
+    # Sort and select alpha, beta, delta
+    sorted_idx = np.argsort(fitness)
+    alpha, beta, delta = wolves[sorted_idx[:3]]
+    alpha_score, beta_score, delta_score = fitness[sorted_idx[:3]]
+    
+    for t in range(max_iter):
+        a = 2 - t * (2 / max_iter)
+        
+        for i in range(num_wolves):
+            wolf = wolves[i].copy()
+            new_wolf = np.zeros(num_features)
+            
+            for d in range(num_features):
+                r1, r2 = np.random.rand(), np.random.rand()
+                A1, C1 = 2*a*r1 - a, 2*r2
+                D_alpha = abs(C1*alpha[d] - wolf[d])
+                X1 = alpha[d] - A1 * D_alpha
+                
+                r1, r2 = np.random.rand(), np.random.rand()
+                A2, C2 = 2*a*r1 - a, 2*r2
+                D_beta = abs(C2*beta[d] - wolf[d])
+                X2 = beta[d] - A2 * D_beta
+                
+                r1, r2 = np.random.rand(), np.random.rand()
+                A3, C3 = 2*a*r1 - a, 2*r2
+                D_delta = abs(C3*delta[d] - wolf[d])
+                X3 = delta[d] - A3 * D_delta
+                
+                X_new = (X1 + X2 + X3) / 3
+                new_wolf[d] = binary_transfer_function(X_new)
+            
+            wolves[i] = new_wolf
+        
+        # Re-evaluate fitness
+        fitness = np.array([fitness_function(wolf) for wolf in wolves])
+        sorted_idx = np.argsort(fitness)
+        alpha, beta, delta = wolves[sorted_idx[:3]]
+        alpha_score, beta_score, delta_score = fitness[sorted_idx[:3]]
+        
+        print(f"Iteration {t+1} | Best Accuracy = {1 - alpha_score:.4f} | Features Selected = {int(sum(alpha))}")
+    
+    return alpha, 1 - alpha_score
+
+# ---------------------------
+# Run GWO
+# ---------------------------
+best_features, best_accuracy = grey_wolf_optimizer(num_wolves=20, max_iter=20)
+print("\n✅ Best feature subset:", best_features)
+print("✅ Best classification accuracy:", best_accuracy)
