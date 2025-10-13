@@ -1,0 +1,115 @@
+import random
+
+def get_von_neumann_neighbors(row, col, grid_rows, grid_cols):
+    directions = [(-1,0), (1,0), (0,-1), (0,1)]
+    neighbors = []
+    for dr, dc in directions:
+        nr = (row + dr) % grid_rows
+        nc = (col + dc) % grid_cols
+        neighbors.append((nr, nc))
+    return neighbors
+
+def get_moore_neighbors(row, col, grid_rows, grid_cols):
+    neighbors = []
+    for dr in [-1, 0, 1]:
+        for dc in [-1, 0, 1]:
+            if dr == 0 and dc == 0:
+                continue
+            nr = (row + dr) % grid_rows
+            nc = (col + dc) % grid_cols
+            neighbors.append((nr, nc))
+    return neighbors
+
+def generate_resource_ids(num_resources):
+    if num_resources > 26:
+        raise ValueError("Max 26 resources supported.")
+    return [chr(ord('A') + i) for i in range(num_resources)]
+
+def random_feasible_allocation(resource_ids, max_units):
+    return {r: random.randint(0, max_units) for r in resource_ids}
+
+def evaluate_allocation(allocation, max_units):
+    total = sum(allocation.values())
+    penalty = 0
+    for units in allocation.values():
+        if units > max_units:
+            penalty += (units - max_units) * 2
+    return total - penalty
+
+def perturb(allocation, resource_ids, max_units):
+    new_alloc = allocation.copy()
+    resource = random.choice(resource_ids)
+    change = random.choice([-1, 1])
+    new_value = new_alloc[resource] + change
+    new_alloc[resource] = max(0, min(new_value, max_units * 2))
+    return new_alloc
+
+def enforce_constraints(allocation, max_units):
+    return {r: min(units, max_units) for r, units in allocation.items()}
+
+def get_neighbors(cell_row, cell_col, neighborhood, grid_rows, grid_cols):
+    if neighborhood == 'von_neumann':
+        return get_von_neumann_neighbors(cell_row, cell_col, grid_rows, grid_cols)
+    elif neighborhood == 'moore':
+        return get_moore_neighbors(cell_row, cell_col, grid_rows, grid_cols)
+    else:
+        raise ValueError("Invalid neighborhood type")
+
+def get_user_neighborhood():
+    valid_inputs = {
+        'von_neumann': 'von_neumann',
+        'vn': 'von_neumann',
+        'moore': 'moore',
+        'm': 'moore'
+    }
+    while True:
+        n = input("Neighborhood type (von_neumann/vn or moore/m): ").strip().lower()
+        if n in valid_inputs:
+            return valid_inputs[n]
+        print("Invalid input! Please enter 'von_neumann' (or 'vn') or 'moore' (or 'm').")
+
+def parallel_cellular_algorithm(grid_rows, grid_cols, neighborhood, max_iterations, p, resource_ids, max_units):
+    cells = [[{'allocation': random_feasible_allocation(resource_ids, max_units), 'fitness': None} for _ in range(grid_cols)] for _ in range(grid_rows)]
+    for r in range(grid_rows):
+        for c in range(grid_cols):
+            cells[r][c]['fitness'] = evaluate_allocation(cells[r][c]['allocation'], max_units)
+
+    for iteration in range(max_iterations):
+        next_cells = [[None]*grid_cols for _ in range(grid_rows)]
+        for r in range(grid_rows):
+            for c in range(grid_cols):
+                neighbors_coords = get_neighbors(r, c, neighborhood, grid_rows, grid_cols)
+                neighbors = [cells[nr][nc] for nr, nc in neighbors_coords]
+                best_neighbor = max(neighbors, key=lambda x: x['fitness'])
+                if random.random() < p:
+                    new_alloc = best_neighbor['allocation']
+                else:
+                    new_alloc = perturb(cells[r][c]['allocation'], resource_ids, max_units)
+                new_alloc = enforce_constraints(new_alloc, max_units)
+                new_fitness = evaluate_allocation(new_alloc, max_units)
+                next_cells[r][c] = {'allocation': new_alloc, 'fitness': new_fitness}
+        cells = next_cells
+
+        best_cell = max((cell for row in cells for cell in row), key=lambda x: x['fitness'])
+        print(f"Iteration {iteration+1}: Best fitness = {best_cell['fitness']}")
+
+    best_cell = max((cell for row in cells for cell in row), key=lambda x: x['fitness'])
+    return best_cell['allocation'], best_cell['fitness']
+
+if __name__ == "__main__":
+    grid_rows = int(input("Grid rows: "))
+    grid_cols = int(input("Grid columns: "))
+    neighborhood = get_user_neighborhood()
+    max_iterations = int(input("Max iterations: "))
+    p = float(input("Probability of adopting best neighbor (0 to 1): "))
+    num_resources = int(input("Number of resources (max 26): "))
+    max_units = int(input("Maximum units per resource: "))
+
+    resource_ids = generate_resource_ids(num_resources)
+
+    best_allocation, best_fitness = parallel_cellular_algorithm(grid_rows, grid_cols, neighborhood, max_iterations, p, resource_ids, max_units)
+
+    print("\nBest Allocation Found:")
+    for resource, units in best_allocation.items():
+        print(f"Resource {resource}: {units} units")
+    print(f"Fitness: {best_fitness}")
